@@ -1,0 +1,25 @@
+# grafana/grafana chart
+adminUser: admin
+adminPassword: wsc2026-logging-admin-61
+
+# Service port 3000 to match the ALB ingress backend
+service:
+  type: ClusterIP
+  port: 3000
+
+# Served behind the ALB at /logging
+grafana.ini:
+  server:
+    root_url: "%(protocol)s://%(domain)s:%(http_port)s/logging/"
+    serve_from_sub_path: true
+
+# Pre-wire the Loki datasource
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+      - name: Loki
+        type: loki
+        access: proxy
+        url: http://loki.logging.svc.cluster.local:3100
+        isDefault: true
