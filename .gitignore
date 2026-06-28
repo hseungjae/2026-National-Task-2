@@ -1,10 +1,18 @@
-# Terraform providers (large binaries)
-**/.terraform/providers/
+# Terraform
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.backup
+*.tfstate.*.backup
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
 
 # Private keys
 *.pem
 *.key
-
-# Terraform state (may contain sensitive data)
-terraform.tfstate
-terraform.tfstate.backup
