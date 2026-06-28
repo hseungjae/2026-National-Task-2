@@ -1,0 +1,10 @@
+# Terraform providers (large binaries)
+**/.terraform/providers/
+
+# Private keys
+*.pem
+*.key
+
+# Terraform state (may contain sensitive data)
+terraform.tfstate
+terraform.tfstate.backup
