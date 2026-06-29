@@ -7,8 +7,12 @@ ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 
 SQS_QUEUE_URL=$(aws sqs get-queue-url --queue-name skills-sqs-queue --region $REGION --query QueueUrl --output text)
 ECR_REPO_URL="${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/skills-sqs-ecr"
-WORKER_ROLE_ARN=$(aws iam get-role --role-name skills-sqs-worker-role --query Role.Arn --output text)
-NODE_ROLE_NAME=$(aws iam get-role --role-name skills-sqs-node-role --query Role.RoleName --output text)
+WORKER_ROLE_ARN="arn:aws:iam::${ACCOUNT_ID}:role/skills-sqs-worker-role"
+NODE_ROLE_NAME="skills-sqs-node-role"
+KARPENTER_ROLE_ARN="arn:aws:iam::${ACCOUNT_ID}:role/skills-sqs-karpenter-role"
+KEDA_ROLE_ARN="arn:aws:iam::${ACCOUNT_ID}:role/skills-sqs-keda-role"
+EKS_CLUSTER_SG=$(aws eks describe-cluster --name "$CLUSTER_NAME" --region "$REGION" \
+  --query 'cluster.resourcesVpcConfig.clusterSecurityGroupId' --output text)
 
 echo "Cluster:     $CLUSTER_NAME"
 echo "Region:      $REGION"
@@ -20,6 +24,39 @@ echo "Node Role:   $NODE_ROLE_NAME"
 
 echo "=== Configuring kubectl ==="
 aws eks update-kubeconfig --name "$CLUSTER_NAME" --region "$REGION"
+
+curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+
+echo "=== CoreDNS Fargate 설정 ==="
+kubectl patch deployment coredns -n kube-system --type=merge \
+  -p='{"spec":{"template":{"metadata":{"annotations":{"eks.amazonaws.com/compute-type":null}}}}}' 2>/dev/null || true
+kubectl rollout restart deployment/coredns -n kube-system
+echo "CoreDNS Fargate 프로비저닝 대기 중..."
+kubectl rollout status deployment/coredns -n kube-system --timeout=300s
+
+echo "=== aws-logging ConfigMap 생성 ==="
+kubectl create namespace aws-observability --dry-run=client -o yaml | kubectl apply -f -
+kubectl create configmap aws-logging -n aws-observability \
+  --from-literal=flb_log_cw=false --dry-run=client -o yaml | kubectl apply -f -
+
+echo "=== Karpenter 설치 ==="
+helm upgrade --install karpenter oci://public.ecr.aws/karpenter/karpenter \
+  --version 1.3.3 \
+  --namespace karpenter \
+  --create-namespace \
+  --set settings.clusterName="$CLUSTER_NAME" \
+  --set "serviceAccount.annotations.eks\.amazonaws\.com/role-arn=$KARPENTER_ROLE_ARN" \
+  --wait --timeout 5m
+
+echo "=== KEDA 설치 ==="
+helm repo add kedacore https://kedacore.github.io/charts
+helm repo update
+helm upgrade --install keda kedacore/keda \
+  --namespace keda \
+  --create-namespace \
+  --set "serviceAccount.annotations.eks\.amazonaws\.com/role-arn=$KEDA_ROLE_ARN" \
+  --wait --timeout 5m
 
 echo "=== Creating namespace ==="
 kubectl create namespace skills-sqs --dry-run=client -o yaml | kubectl apply -f -
@@ -51,6 +88,7 @@ spec:
   securityGroupSelectorTerms:
     - tags:
         karpenter.sh/discovery: $CLUSTER_NAME
+    - id: $EKS_CLUSTER_SG
   tags:
     karpenter.sh/discovery: $CLUSTER_NAME
 EOF

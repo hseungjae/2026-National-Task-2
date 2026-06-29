@@ -16,8 +16,9 @@ resource "aws_subnet" "public_a" {
   availability_zone       = "ap-northeast-1a"
   map_public_ip_on_launch = true
   tags = {
-    Name                     = "wsc-logging-sn-pub-a"
-    "kubernetes.io/role/elb" = "1"
+    Name                                        = "wsc-logging-sn-pub-a"
+    "kubernetes.io/role/elb"                    = "1"
+    "kubernetes.io/cluster/wsc-logging-cluster" = "owned"
   }
 }
 
@@ -27,8 +28,9 @@ resource "aws_subnet" "public_c" {
   availability_zone       = "ap-northeast-1c"
   map_public_ip_on_launch = true
   tags = {
-    Name                     = "wsc-logging-sn-pub-c"
-    "kubernetes.io/role/elb" = "1"
+    Name                                        = "wsc-logging-sn-pub-c"
+    "kubernetes.io/role/elb"                    = "1"
+    "kubernetes.io/cluster/wsc-logging-cluster" = "owned"
   }
 }
 
@@ -37,8 +39,9 @@ resource "aws_subnet" "private_a" {
   cidr_block        = "10.3.2.0/24"
   availability_zone = "ap-northeast-1a"
   tags = {
-    Name                              = "wsc-logging-sn-priv-a"
-    "kubernetes.io/role/internal-elb" = "1"
+    Name                                        = "wsc-logging-sn-priv-a"
+    "kubernetes.io/role/internal-elb"           = "1"
+    "kubernetes.io/cluster/wsc-logging-cluster" = "owned"
   }
 }
 
@@ -47,8 +50,9 @@ resource "aws_subnet" "private_c" {
   cidr_block        = "10.3.3.0/24"
   availability_zone = "ap-northeast-1c"
   tags = {
-    Name                              = "wsc-logging-sn-priv-c"
-    "kubernetes.io/role/internal-elb" = "1"
+    Name                                        = "wsc-logging-sn-priv-c"
+    "kubernetes.io/role/internal-elb"           = "1"
+    "kubernetes.io/cluster/wsc-logging-cluster" = "owned"
   }
 }
 

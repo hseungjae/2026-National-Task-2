@@ -60,7 +60,8 @@ resource "aws_eks_cluster" "this" {
   }
 
   access_config {
-    authentication_mode = "API"
+    authentication_mode                         = "API"
+    bootstrap_cluster_creator_admin_permissions = true
   }
 
   depends_on = [aws_iam_role_policy_attachment.eks_cluster, module.vpc]
@@ -73,9 +74,31 @@ resource "aws_iam_openid_connect_provider" "eks" {
 }
 
 resource "aws_eks_addon" "coredns" {
-  cluster_name = aws_eks_cluster.this.name
-  addon_name   = "coredns"
-  depends_on   = [module.fargate]
+  cluster_name         = aws_eks_cluster.this.name
+  addon_name           = "coredns"
+  configuration_values = jsonencode({
+    computeType = "Fargate"
+    corefile = <<-EOT
+      .:53 {
+          errors
+          health {
+              lameduck 5s
+            }
+          ready
+          kubernetes cluster.local in-addr.arpa ip6.arpa {
+            pods insecure
+            fallthrough in-addr.arpa ip6.arpa
+          }
+          prometheus :9153
+          forward . 169.254.169.253
+          cache 30
+          loop
+          reload
+          loadbalance
+      }
+    EOT
+  })
+  depends_on           = [module.fargate]
 }
 
 resource "aws_eks_addon" "vpc_cni" {
@@ -97,23 +120,11 @@ resource "aws_eks_access_entry" "node" {
   depends_on    = [aws_eks_cluster.this]
 }
 
-resource "aws_eks_access_entry" "caller" {
-  cluster_name  = aws_eks_cluster.this.name
-  principal_arn = data.aws_caller_identity.current.arn
-  depends_on    = [aws_eks_cluster.this]
-}
-
-resource "aws_eks_access_policy_association" "caller_admin" {
-  cluster_name  = aws_eks_cluster.this.name
-  principal_arn = data.aws_caller_identity.current.arn
-  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
-  access_scope { type = "cluster" }
-  depends_on    = [aws_eks_access_entry.caller]
-}
 
 module "vpc" {
   source       = "./vpc"
   cluster_name = var.cluster_name
+  region       = var.region
 }
 
 module "iam" {
@@ -139,14 +150,3 @@ module "sqs" {
 module "ecr" {
   source = "./ecr"
 }
-/*
-module "helm" {
-  source             = "./helm"
-  cluster_name       = var.cluster_name
-  region             = var.region
-  karpenter_role_arn = module.iam.karpenter_role_arn
-  keda_role_arn      = module.iam.keda_role_arn
-  depends_on         = [module.fargate, aws_eks_addon.coredns, aws_eks_addon.vpc_cni, aws_eks_addon.kube_proxy, aws_eks_access_policy_association.caller_admin]
-}
-
-*/

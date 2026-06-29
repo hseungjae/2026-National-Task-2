@@ -133,22 +133,11 @@ module "eks" {
   depends_on         = [aws_eks_cluster.this, module.iam]
 }
 
-module "helm" {
-  source                 = "./helm"
-  cluster_name           = var.cluster_name
-  region                 = var.region
-  contestant_number      = var.contestant_number
-  node_group_name        = module.eks.node_group_name
-  gp2_default_annotation = module.eks.gp2_default_annotation
-  depends_on             = [module.eks, aws_eks_access_policy_association.caller_admin]
-}
-
 module "kubernetes" {
   source              = "./kubernetes"
   cluster_name        = var.cluster_name
   region              = var.region
   node_group_name     = module.eks.node_group_name
-  loki_release_name   = module.helm.loki_release_name
   bastion_instance_id = module.ec2.bastion_instance_id
-  depends_on          = [module.helm]
+  depends_on          = [module.eks, aws_eks_access_policy_association.caller_admin]
 }

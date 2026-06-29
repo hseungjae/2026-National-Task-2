@@ -5,46 +5,41 @@
 
 ## 배포 순서
 
-### 1단계 - 클러스터 생성 (helm 주석 처리 상태로 apply)
-
-main.tf에서 `module "helm"` 블록 주석 처리 후:
+### 1단계 - 클러스터 생성
 
 ```bash
 terraform init
 terraform apply
 ```
 
-### 2단계 - helm repo 등록
+### 2단계 - kubectl 설정
 
 ```bash
-helm repo add eks https://aws.github.io/eks-charts
-helm repo add kedacore https://kedacore.github.io/charts
-helm repo update
+aws eks update-kubeconfig --name skills-sqs-cluster --region us-west-2
 ```
 
-### 3단계 - helm 설치 (주석 해제 후 apply)
-
-main.tf에서 `module "helm"` 블록 주석 해제 후:
-
-```bash
-terraform apply
-```
-
-### 4단계 - Docker 이미지 빌드 & ECR 업로드
+### 3단계 - Docker 이미지 빌드 & ECR 업로드
 
 CloudShell에서 `script/push.sh` 업로드 후:
 
 ```bash
-bash push.sh
+sed -i 's/\r//' push.sh && chmod +x push.sh && ./push.sh
 ```
 
-### 5단계 - K8s 리소스 배포
+### 4단계 - K8s 리소스 배포
 
 CloudShell에서 `script/deploy.sh` 업로드 후:
 
 ```bash
-bash deploy.sh
+sed -i 's/\r//' deploy.sh && chmod +x deploy.sh && ./deploy.sh
 ```
+
+스크립트가 자동으로 처리하는 항목:
+- CoreDNS Fargate 스케줄링 설정 및 대기
+- aws-logging ConfigMap 생성
+- Karpenter 설치
+- KEDA 설치
+- K8s 리소스 배포 (EC2NodeClass, NodePool, Deployment, ScaledObject)
 
 ## 확인
 

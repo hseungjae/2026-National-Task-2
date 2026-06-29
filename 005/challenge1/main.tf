@@ -78,6 +78,20 @@ resource "aws_eks_access_entry" "node" {
   depends_on    = [aws_eks_cluster.this]
 }
 
+resource "aws_eks_access_entry" "bastion" {
+  cluster_name  = aws_eks_cluster.this.name
+  principal_arn = module.iam.bastion_role_arn
+  depends_on    = [aws_eks_cluster.this, module.iam]
+}
+
+resource "aws_eks_access_policy_association" "bastion_admin" {
+  cluster_name  = aws_eks_cluster.this.name
+  principal_arn = module.iam.bastion_role_arn
+  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+  access_scope { type = "cluster" }
+  depends_on    = [aws_eks_access_entry.bastion]
+}
+
 resource "aws_eks_access_entry" "caller" {
   cluster_name  = aws_eks_cluster.this.name
   principal_arn = data.aws_caller_identity.current.arn
@@ -125,15 +139,6 @@ module "eks" {
   depends_on         = [aws_eks_cluster.this, module.iam]
 }
 
-module "helm" {
-  source             = "./helm"
-  cluster_name       = var.cluster_name
-  region             = var.region
-  karpenter_role_arn = module.iam.karpenter_role_arn
-  keda_role_arn      = module.iam.keda_role_arn
-  depends_on         = [module.eks, aws_eks_access_policy_association.caller_admin]
-}
-
 module "kubernetes" {
   source           = "./kubernetes"
   cluster_name     = var.cluster_name
@@ -141,5 +146,5 @@ module "kubernetes" {
   account_id       = data.aws_caller_identity.current.account_id
   sqs_queue_url    = module.sqs.queue_url
   node_role_name   = module.iam.node_role_name
-  depends_on       = [module.helm]
+  depends_on       = [module.eks, aws_eks_access_policy_association.caller_admin]
 }

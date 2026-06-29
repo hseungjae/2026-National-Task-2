@@ -4,9 +4,43 @@ set -e
 CLUSTER_NAME="wsc-scaling-cluster"
 REGION="ap-northeast-2"
 NODE_ROLE_NAME="AmazonEKSNodeRole"
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 SQS_QUEUE_URL=$(aws sqs get-queue-url --queue-name wsc-scaling-sqs --region $REGION --query QueueUrl --output text)
 
 aws eks update-kubeconfig --region $REGION --name $CLUSTER_NAME
+
+# Helm 설치 (미설치 시)
+if ! command -v helm &>/dev/null; then
+  curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+fi
+
+# Karpenter 설치
+KARPENTER_VERSION="1.4.0"
+KARPENTER_ROLE_ARN=$(aws iam get-role \
+  --role-name KarpenterControllerRole \
+  --query Role.Arn \
+  --output text)
+
+helm upgrade --install karpenter oci://public.ecr.aws/karpenter/karpenter \
+  --version "$KARPENTER_VERSION" \
+  --namespace kube-system \
+  --set "settings.clusterName=$CLUSTER_NAME" \
+  --set "serviceAccount.annotations.eks\.amazonaws\.com/role-arn=$KARPENTER_ROLE_ARN" \
+  --wait --timeout 5m
+
+# KEDA 설치
+KEDA_ROLE_ARN=$(aws iam get-role \
+  --role-name KedaOperatorRole \
+  --query Role.Arn \
+  --output text)
+
+helm repo add kedacore https://kedacore.github.io/charts
+helm repo update
+helm upgrade --install keda kedacore/keda \
+  --namespace keda \
+  --create-namespace \
+  --set "serviceAccount.annotations.eks\.amazonaws\.com/role-arn=$KEDA_ROLE_ARN" \
+  --wait --timeout 5m
 
 kubectl apply -f - <<EOF
 apiVersion: karpenter.k8s.aws/v1

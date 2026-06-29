@@ -3,6 +3,9 @@ set -e
 
 CLUSTER_NAME="wsc-logging-cluster"
 REGION="ap-northeast-1"
+CONTESTANT_NUMBER="${1:-100}"
+
+aws eks update-kubeconfig --name $CLUSTER_NAME --region $REGION
 
 # kubectl 설치 (미설치 시)
 if ! command -v kubectl &>/dev/null; then
@@ -12,20 +15,218 @@ if ! command -v kubectl &>/dev/null; then
   sudo mv kubectl /usr/local/bin/
 fi
 
-aws eks update-kubeconfig --name $CLUSTER_NAME --region $REGION
+# Helm 설치 (미설치 시)
+if ! command -v helm &>/dev/null; then
+  curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+fi
 
-# gp2 StorageClass를 default로 패치
+# gp2 StorageClass를 default로 패치 (Loki PVC에 필요)
 kubectl patch storageclass gp2 -p '{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
 
-# Loki 서비스를 LoadBalancer로 패치
-kubectl patch svc loki -n wsc-logging -p '{
-  "spec": {"type": "LoadBalancer"},
-  "metadata": {"annotations": {
-    "service.beta.kubernetes.io/aws-load-balancer-type": "nlb",
-    "service.beta.kubernetes.io/aws-load-balancer-nlb-target-type": "ip",
-    "service.beta.kubernetes.io/aws-load-balancer-scheme": "internet-facing"
-  }}
-}'
+# AWS Load Balancer Controller 설치
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+OIDC_URL=$(aws eks describe-cluster --name $CLUSTER_NAME --region $REGION \
+  --query "cluster.identity.oidc.issuer" --output text | sed 's|https://||')
+OIDC_ARN="arn:aws:iam::${ACCOUNT_ID}:oidc-provider/${OIDC_URL}"
+
+# LBC IAM Policy 생성
+curl -sLo /tmp/lbc-policy.json \
+  https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/main/docs/install/iam_policy.json
+aws iam create-policy \
+  --policy-name AWSLoadBalancerControllerIAMPolicy \
+  --policy-document file:///tmp/lbc-policy.json 2>/dev/null || \
+aws iam create-policy-version \
+  --policy-arn "arn:aws:iam::${ACCOUNT_ID}:policy/AWSLoadBalancerControllerIAMPolicy" \
+  --policy-document file:///tmp/lbc-policy.json \
+  --set-as-default 2>/dev/null || true
+
+LBC_POLICY_ARN="arn:aws:iam::${ACCOUNT_ID}:policy/AWSLoadBalancerControllerIAMPolicy"
+
+# LBC IAM Role 생성 (IRSA)
+cat > /tmp/lbc-trust.json <<TRUST
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Principal": {"Federated": "${OIDC_ARN}"},
+    "Action": "sts:AssumeRoleWithWebIdentity",
+    "Condition": {
+      "StringEquals": {
+        "${OIDC_URL}:sub": "system:serviceaccount:kube-system:aws-load-balancer-controller",
+        "${OIDC_URL}:aud": "sts.amazonaws.com"
+      }
+    }
+  }]
+}
+TRUST
+
+aws iam create-role \
+  --role-name AWSLoadBalancerControllerRole \
+  --assume-role-policy-document file:///tmp/lbc-trust.json 2>/dev/null || true
+aws iam attach-role-policy \
+  --role-name AWSLoadBalancerControllerRole \
+  --policy-arn $LBC_POLICY_ARN 2>/dev/null || true
+
+LBC_ROLE_ARN="arn:aws:iam::${ACCOUNT_ID}:role/AWSLoadBalancerControllerRole"
+
+VPC_ID=$(aws eks describe-cluster --name $CLUSTER_NAME --region $REGION \
+  --query "cluster.resourcesVpcConfig.vpcId" --output text)
+
+# LBC helm 설치
+helm repo add eks https://aws.github.io/eks-charts
+helm repo update
+helm upgrade --install aws-load-balancer-controller eks/aws-load-balancer-controller \
+  --namespace kube-system \
+  --set clusterName=$CLUSTER_NAME \
+  --set region=$REGION \
+  --set vpcId=$VPC_ID \
+  --set "serviceAccount.annotations.eks\.amazonaws\.com/role-arn=$LBC_ROLE_ARN" \
+  --wait --timeout 5m
+
+# Grafana helm 레포 추가
+helm repo add grafana https://grafana.github.io/helm-charts
+helm repo update
+
+# 네임스페이스 생성
+kubectl create namespace wsc-logging --dry-run=client -o yaml | kubectl apply -f -
+
+# Grafana 대시보드 ConfigMap 생성
+kubectl apply -f - <<'MANIFEST'
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-cm
+  namespace: wsc-logging
+data:
+  grafana-dashboard.json: |
+    {
+      "__inputs": [{"name": "DS_LOKI", "label": "Loki", "description": "", "type": "datasource", "pluginId": "loki", "pluginName": "Loki"}],
+      "__elements": {},
+      "__requires": [
+        {"type": "datasource", "id": "loki", "name": "Loki", "version": "1.0.0"},
+        {"type": "panel", "id": "logs", "name": "Logs", "version": ""},
+        {"type": "panel", "id": "timeseries", "name": "Time series", "version": ""}
+      ],
+      "annotations": {"list": []},
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 0,
+      "id": null,
+      "links": [],
+      "panels": [
+        {
+          "datasource": {"type": "loki", "uid": "loki"},
+          "gridPos": {"h": 10, "w": 24, "x": 0, "y": 0},
+          "id": 1,
+          "options": {"dedupStrategy": "none", "enableLogDetails": true, "prettifyLogMessage": false, "showCommonLabels": false, "showLabels": false, "showTime": false, "sortOrder": "Descending", "wrapLogMessage": false},
+          "targets": [{"datasource": {"type": "loki", "uid": "loki"}, "editorMode": "code", "expr": "{namespace=\"wsc-app-log\"}", "queryType": "range", "refId": "A"}],
+          "title": "Any Log",
+          "type": "logs"
+        },
+        {
+          "datasource": {"type": "loki", "uid": "loki"},
+          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}}, "overrides": []},
+          "gridPos": {"h": 8, "w": 8, "x": 0, "y": 10},
+          "id": 2,
+          "options": {"legend": {"calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
+          "targets": [{"datasource": {"type": "loki", "uid": "loki"}, "editorMode": "code", "expr": "count_over_time({namespace=\"wsc-app-log\"} |= \"INFO\" [1m])", "queryType": "range", "refId": "A"}],
+          "title": "INFO Log Count",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "loki", "uid": "loki"},
+          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}}, "overrides": []},
+          "gridPos": {"h": 8, "w": 8, "x": 8, "y": 10},
+          "id": 3,
+          "options": {"legend": {"calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
+          "targets": [{"datasource": {"type": "loki", "uid": "loki"}, "editorMode": "code", "expr": "count_over_time({namespace=\"wsc-app-log\"} |= \"ERROR\" [1m])", "queryType": "range", "refId": "A"}],
+          "title": "ERROR Log Count",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "loki", "uid": "loki"},
+          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}}, "overrides": []},
+          "gridPos": {"h": 8, "w": 8, "x": 16, "y": 10},
+          "id": 4,
+          "options": {"legend": {"calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
+          "targets": [{"datasource": {"type": "loki", "uid": "loki"}, "editorMode": "code", "expr": "count_over_time({namespace=\"wsc-app-log\"} |= \"WARNING\" [1m])", "queryType": "range", "refId": "A"}],
+          "title": "WARNING Log Count",
+          "type": "timeseries"
+        }
+      ],
+      "refresh": "5s",
+      "schemaVersion": 39,
+      "tags": [],
+      "time": {"from": "now-1h", "to": "now"},
+      "timepicker": {},
+      "timezone": "browser",
+      "title": "WSC2026 Container Logs",
+      "uid": "wsc2026-container-logs",
+      "version": 1
+    }
+MANIFEST
+
+# Loki 설치
+helm upgrade --install loki grafana/loki \
+  --namespace wsc-logging \
+  --timeout 10m \
+  --wait \
+  --values - <<'YAML'
+deploymentMode: SingleBinary
+
+loki:
+  auth_enabled: false
+  commonConfig:
+    replication_factor: 1
+  storage:
+    type: filesystem
+  schemaConfig:
+    configs:
+      - from: "2024-01-01"
+        store: tsdb
+        object_store: filesystem
+        schema: v13
+        index:
+          prefix: loki_index_
+          period: 24h
+
+singleBinary:
+  replicas: 1
+  persistence:
+    enabled: true
+    size: 10Gi
+
+service:
+  type: LoadBalancer
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: external
+    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
+    service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
+  port: 3100
+
+write:
+  replicas: 0
+read:
+  replicas: 0
+backend:
+  replicas: 0
+
+gateway:
+  enabled: false
+
+chunksCache:
+  enabled: false
+
+resultsCache:
+  enabled: false
+YAML
+
+# Loki 서비스 LoadBalancer 패치 (chart가 ClusterIP로 생성하는 경우 대비)
+kubectl annotate svc loki -n wsc-logging \
+  service.beta.kubernetes.io/aws-load-balancer-type=external \
+  service.beta.kubernetes.io/aws-load-balancer-nlb-target-type=ip \
+  service.beta.kubernetes.io/aws-load-balancer-scheme=internet-facing --overwrite
+kubectl patch svc loki -n wsc-logging -p '{"spec":{"type":"LoadBalancer"}}'
 
 # Loki NLB 준비 대기
 echo "Waiting for Loki NLB to be ready..."
@@ -44,10 +245,51 @@ if [ -z "$LOKI_HOST" ]; then
   exit 1
 fi
 
-# Fluent Bit 설치
-if ! systemctl list-units --full -all | grep -q fluent-bit; then
-  curl https://raw.githubusercontent.com/fluent/fluent-bit/master/install.sh | sh
-fi
+# Grafana 설치
+helm upgrade --install grafana grafana/grafana \
+  --namespace wsc-logging \
+  --timeout 10m \
+  --wait \
+  --values - <<EOF
+service:
+  type: LoadBalancer
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: external
+    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
+    service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
+
+adminUser: "wsc2026-admin-${CONTESTANT_NUMBER}"
+adminPassword: "admin${CONTESTANT_NUMBER}!"
+
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+    - name: Loki
+      type: loki
+      uid: loki
+      url: http://loki:3100
+      access: proxy
+      isDefault: true
+      jsonData:
+        maxLines: 1000
+
+dashboardProviders:
+  dashboardproviders.yaml:
+    apiVersion: 1
+    providers:
+    - name: default
+      orgId: 1
+      folder: ''
+      type: file
+      disableDeletion: false
+      editable: true
+      options:
+        path: /var/lib/grafana/dashboards/default
+
+dashboardsConfigMaps:
+  default: "grafana-dashboard-cm"
+EOF
 
 # Docker 설치 및 실행
 if ! command -v docker &>/dev/null; then
@@ -135,6 +377,11 @@ fi
 
 # docker 로그 읽기 권한 부여
 sudo chown -R ec2-user:ec2-user /var/lib/docker/containers
+
+# Fluent Bit 설치
+if ! systemctl list-units --full -all | grep -q fluent-bit; then
+  curl https://raw.githubusercontent.com/fluent/fluent-bit/master/install.sh | sh
+fi
 
 # Fluent Bit 설정
 sudo mkdir -p /etc/fluent-bit

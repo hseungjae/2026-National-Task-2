@@ -1,6 +1,6 @@
 locals {
-  docdb_client_b64   = base64encode(file("${path.module}/../../../challenge1/docdb_client.py"))
-  retail_dataset_b64 = base64encode(file("${path.module}/../../../challenge1/retail_dataset.json"))
+  docdb_client_b64   = base64encode(file("${path.module}/../배포파일/docdb_client.py"))
+  retail_dataset_b64 = base64encode(file("${path.module}/../배포파일/retail_dataset.json"))
 
   user_data = join("", [
     "#!/bin/bash\n",

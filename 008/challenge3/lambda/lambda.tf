@@ -1,6 +1,6 @@
 data "archive_file" "lambda" {
   type        = "zip"
-  source_file = "${path.module}/../../../challenge3/remediate_security_group.py"
+  source_file = "${path.module}/../배포파일/remediate_security_group.py"
   output_path = "${path.module}/lambda_function.zip"
 }
 
