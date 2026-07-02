@@ -4,6 +4,7 @@
 *.tfstate
 *.tfstate.backup
 *.tfstate.*.backup
+*.tfplan
 crash.log
 crash.*.log
 override.tf
