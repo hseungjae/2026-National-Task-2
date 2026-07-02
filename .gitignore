@@ -1,5 +1,19 @@
+# Terraform
 .terraform/
+.terraform.lock.hcl
 *.tfstate
 *.tfstate.backup
+*.tfstate.*.backup
 *.tfplan
-.terraform.lock.hcl
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+
+# Private keys
+*.pem
+*.key
