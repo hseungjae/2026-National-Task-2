@@ -22,27 +22,8 @@ ssh -i ec2/gj2026-event-key.pem ec2-user@<EC2_PUBLIC_IP>
 sudo tail -f /var/log/userdata.log
 ```
 
-### 3. Flink Studio에 AWS 지원 Kafka Connector 추가
 
-Flink에서 Kafka를 사용하려면 AWS에서 지원하는 Kafka Connector를 Flink Studio 앱에 추가해야 한다.  
-(Custom Connector가 아닌 AWS 지원 Connector 사용)
-
-```
-AWS 콘솔 → Managed Service for Apache Flink
-→ gj2026-data-flink → Configure → Connectors
-→ Add connector → Apache Kafka 선택
-→ Save changes
-```
-
----
-
-### 4. Zeppelin 노트북 Query 실행
-
-Connector 추가 후 Flink Studio 콘솔에서 **Open in Apache Zeppelin** 클릭 후 쿼리를 실행한다.
-
----
-
-### 5. CloudWatch Agent 설치 확인
+### 3. CloudWatch Agent 설치 확인
 
 EC2 userdata에서 CWAgent가 `app_process_count` 커스텀 메트릭을 전송해야 알람이 동작함.
 

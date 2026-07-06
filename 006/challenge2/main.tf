@@ -16,8 +16,8 @@ resource "aws_s3_bucket_public_access_block" "scripts" {
 resource "aws_s3_object" "app_py" {
   bucket = aws_s3_bucket.scripts.id
   key    = "app.py"
-  source = "${path.root}/../../문제/Real-time data analytics/app.py"
-  etag   = filemd5("${path.root}/../../문제/Real-time data analytics/app.py")
+  source = "${path.root}/../배포파일/Real-time data analytics/app.py"
+  etag   = filemd5("${path.root}/../배포파일/Real-time data analytics/app.py")
 }
 
 resource "aws_s3_object" "setup_kafka" {

@@ -2,6 +2,14 @@ locals {
   app_py_b64 = "ZnJvbSBmYXN0YXBpIGltcG9ydCBGYXN0QVBJCmZyb20gZGF0ZXRpbWUgaW1wb3J0IGRhdGV0aW1lCmltcG9ydCB1dmljb3JuCgphcHAgPSBGYXN0QVBJKCkKCkBhcHAuZ2V0KCIvIikKZGVmIHJvb3QoKToKICAgIHJldHVybiB7InN0YXR1cyI6ICJvayIsICJtZXNzYWdlIjogIldvcmxkU2tpbGxzIDIwMjYiLCAidGltZSI6IGRhdGV0aW1lLm5vdygpLmlzb2Zvcm1hdCgpfQoKQGFwcC5nZXQoIi9oZWFsdGgiKQpkZWYgaGVhbHRoKCk6CiAgICByZXR1cm4geyJzdGF0dXMiOiAiaGVhbHRoeSJ9CiAgICAKaWYgX19uYW1lX18gPT0gIl9fbWFpbl9fIjoKICAgIHV2aWNvcm4ucnVuKGFwcCwgaG9zdD0iMTI3LjAuMC4xIiwgcG9ydD04MDgwKQ=="
 }
 
+resource "aws_ssm_parameter" "app_py_backup" {
+  name  = "/gj2026/event/app-py"
+  type  = "String"
+  value = base64decode(local.app_py_b64)
+
+  tags = { Name = "gj2026-event-app-py" }
+}
+
 resource "tls_private_key" "event_key" {
   algorithm = "RSA"
   rsa_bits  = 2048

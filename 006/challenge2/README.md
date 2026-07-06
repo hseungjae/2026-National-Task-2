@@ -50,28 +50,8 @@ AWS 콘솔 → Managed Service for Apache Flink
 
 Connector 등록 후 Zeppelin 노트북에서 아래 순서로 쿼리를 실행한다.
 
-#### 3-1. Kafka Source 테이블 생성
 
-```sql
-%flink.ssql
-
-CREATE TABLE kafka_source (
-  id BIGINT,
-  name STRING,
-  value DOUBLE,
-  event_time TIMESTAMP(3),
-  WATERMARK FOR event_time AS event_time - INTERVAL '5' SECOND
-) WITH (
-  'connector' = 'kafka',
-  'topic' = 'gj2026-topic',
-  'properties.bootstrap.servers' = '<NLB_DNS>:9094',
-  'properties.group.id' = 'flink-group',
-  'scan.startup.mode' = 'earliest-offset',
-  'format' = 'json'
-);
-```
-
-#### 3-2. Sink 테이블 생성 (Glue 카탈로그 연동)
+#### 3-1. Sink 테이블 생성 (Glue 카탈로그 연동)
 
 ```sql
 %flink.ssql
@@ -140,7 +120,7 @@ CREATE TABLE IF NOT EXISTS sink_anomaly (
 );
 ```
 
-#### 3-3. 분석 쿼리 실행 (Streaming INSERT)
+#### 3-2. 분석 쿼리 실행 (Streaming INSERT)
 
 ```sql
 %flink.ssql

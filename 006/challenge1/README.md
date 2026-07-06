@@ -18,18 +18,18 @@ cd challenge1
 powershell -File script/build_layer.ps1
 ```
 
-### 2. response Lambda 패키지 빌드
-
-```bash
-bash script/build_response.sh
-```
-
-### 3. Terraform 배포
+### 2. Terraform 배포
 
 ```bash
 cd challenge1
 terraform init
 terraform apply -auto-approve
+```
+
+### 3. response lambda 배포
+
+```bash
+bash script/build_response.sh
 ```
 
 ---

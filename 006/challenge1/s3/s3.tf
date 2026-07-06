@@ -17,8 +17,8 @@ resource "aws_s3_bucket_public_access_block" "cdn" {
 resource "aws_s3_object" "dog" {
   bucket       = aws_s3_bucket.cdn.id
   key          = "images/dog.png"
-  source       = "${path.root}/../../문제/CDN/dog.png"
+  source       = "${path.root}/../배포파일/CDN/dog.png"
   content_type = "image/png"
 
-  etag = filemd5("${path.root}/../../문제/CDN/dog.png")
+  etag = filemd5("${path.root}/../배포파일/CDN/dog.png")
 }
