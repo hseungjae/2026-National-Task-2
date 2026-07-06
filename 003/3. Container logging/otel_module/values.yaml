@@ -1,0 +1,80 @@
+mode: deployment
+
+image:
+  repository: otel/opentelemetry-collector-contrib
+
+command:
+  name: otelcol-contrib
+
+ports:
+  otlp-http:
+    enabled: true
+    containerPort: 4318
+    servicePort: 4318
+    protocol: TCP
+  prometheus:
+    enabled: true
+    containerPort: 8889
+    servicePort: 8889
+    protocol: TCP
+
+config:
+  receivers:
+    otlp:
+      protocols:
+        http:
+          endpoint: 0.0.0.0:4318
+        grpc:
+          endpoint: 0.0.0.0:4317
+
+  processors:
+    batch: {}
+    resource:
+      attributes:
+        - key: cluster
+          value: wsc2026-logging-cluster
+          action: upsert
+    transform/parse_json:
+      log_statements:
+        - context: log
+          statements:
+            - set(cache, ParseJSON(body)) where IsMatch(body, "^\\{.*\\}$")
+            - set(attributes["level"], cache["level"]) where cache["level"] != nil
+            - set(attributes["message"], cache["message"]) where cache["message"] != nil
+            - set(attributes["service"], cache["service"]) where cache["service"] != nil
+    transform/default_level:
+      log_statements:
+        - context: log
+          statements:
+            - set(attributes["level"], "UNKNOWN") where attributes["level"] == nil
+
+  connectors:
+    count:
+      logs:
+        log_record_count_total:
+          description: "Count of log records by level"
+          attributes:
+            - key: level
+
+  exporters:
+    otlphttp/loki:
+      endpoint: http://wsc2026-loki.wsc2026-logging.svc.cluster.local:3100/otlp
+      tls:
+        insecure: true
+    prometheus:
+      endpoint: 0.0.0.0:8889
+      resource_to_telemetry_conversion:
+        enabled: true
+    debug:
+      verbosity: basic
+
+  service:
+    pipelines:
+      logs:
+        receivers: [otlp]
+        processors: [resource, transform/parse_json, transform/default_level, batch]
+        exporters: [otlphttp/loki, count, debug]
+      metrics:
+        receivers: [count]
+        processors: [batch]
+        exporters: [prometheus]

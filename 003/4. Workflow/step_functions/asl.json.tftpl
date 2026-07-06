@@ -1,0 +1,225 @@
+{
+  "Comment": "Order processing pipeline",
+  "StartAt": "FetchOrders",
+  "States": {
+    "FetchOrders": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::aws-sdk:s3:getObject",
+      "Parameters": {
+        "Bucket.$": "$.bucket",
+        "Key.$": "$.key"
+      },
+      "ResultSelector": {
+        "content.$": "States.StringToJson($.Body)"
+      },
+      "ResultPath": "$.orderData",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "PipelineFailed",
+          "ResultPath": "$.error"
+        }
+      ],
+      "Next": "ValidateOrders"
+    },
+    "ValidateOrders": {
+      "Type": "Map",
+      "ItemsPath": "$.orderData.content.orders",
+      "MaxConcurrency": 5,
+      "ResultPath": "$.validationResults",
+      "ItemProcessor": {
+        "ProcessorConfig": {"Mode": "INLINE"},
+        "StartAt": "InvokeValidator",
+        "States": {
+          "InvokeValidator": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "Parameters": {
+              "FunctionName": "${validator_name}",
+              "Payload.$": "$"
+            },
+            "ResultSelector": {
+              "valid.$": "$.Payload.valid",
+              "order.$": "$.Payload.order"
+            },
+            "Retry": [
+              {
+                "ErrorEquals": ["States.ALL"],
+                "IntervalSeconds": 2,
+                "MaxAttempts": 2,
+                "BackoffRate": 2.0
+              }
+            ],
+            "End": true
+          }
+        }
+      },
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "PipelineFailed",
+          "ResultPath": "$.error"
+        }
+      ],
+      "Next": "ProcessAndStore"
+    },
+    "ProcessAndStore": {
+      "Type": "Map",
+      "ItemsPath": "$.validationResults",
+      "MaxConcurrency": 10,
+      "ResultPath": "$.processResults",
+      "ItemProcessor": {
+        "ProcessorConfig": {"Mode": "INLINE"},
+        "StartAt": "CheckValid",
+        "States": {
+          "CheckValid": {
+            "Type": "Choice",
+            "Choices": [
+              {
+                "Variable": "$.valid",
+                "BooleanEquals": true,
+                "Next": "ProcessPayment"
+              }
+            ],
+            "Default": "SkipInvalid"
+          },
+          "SkipInvalid": {
+            "Type": "Pass",
+            "End": true
+          },
+          "ProcessPayment": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "Parameters": {
+              "FunctionName": "${payment_name}",
+              "Payload.$": "$"
+            },
+            "ResultSelector": {
+              "order.$": "$.Payload"
+            },
+            "ResultPath": "$.processed",
+            "Retry": [
+              {
+                "ErrorEquals": ["Lambda.ServiceException", "Lambda.TooManyRequestsException"],
+                "IntervalSeconds": 1,
+                "MaxAttempts": 3,
+                "BackoffRate": 2.0
+              }
+            ],
+            "Catch": [
+              {
+                "ErrorEquals": ["States.ALL"],
+                "Next": "SkipInvalid",
+                "ResultPath": null
+              }
+            ],
+            "Next": "StoreOrder"
+          },
+          "StoreOrder": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::dynamodb:putItem",
+            "Parameters": {
+              "TableName": "${orders_table}",
+              "Item": {
+                "order_id":       {"S.$": "$.processed.order.order_id"},
+                "ordered_at":     {"S.$": "$.processed.order.ordered_at"},
+                "product_id":     {"S.$": "$.processed.order.product_id"},
+                "product_name":   {"S.$": "$.processed.order.product_name"},
+                "quantity":       {"N.$": "States.JsonToString($.processed.order.quantity)"},
+                "unit_price":     {"N.$": "States.JsonToString($.processed.order.unit_price)"},
+                "total_amount":   {"N.$": "States.JsonToString($.processed.order.total_amount)"},
+                "total_usd":      {"N.$": "States.JsonToString($.processed.order.total_usd)"},
+                "currency":       {"S.$": "$.processed.order.currency"},
+                "payment_method": {"S.$": "$.processed.order.payment_method"},
+                "payment_status": {"S.$": "$.processed.order.payment_status"},
+                "customer_id":    {"S.$": "$.processed.order.customer_id"},
+                "processed_at":   {"S.$": "$.processed.order.processed_at"}
+              }
+            },
+            "ResultPath": null,
+            "Retry": [
+              {
+                "ErrorEquals": ["States.ALL"],
+                "IntervalSeconds": 1,
+                "MaxAttempts": 3,
+                "BackoffRate": 2.0
+              }
+            ],
+            "Catch": [
+              {
+                "ErrorEquals": ["States.ALL"],
+                "Next": "SkipInvalid",
+                "ResultPath": null
+              }
+            ],
+            "Next": "UpdateInventory"
+          },
+          "UpdateInventory": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::dynamodb:updateItem",
+            "Parameters": {
+              "TableName": "${inventory_table}",
+              "Key": {
+                "product_id": {"S.$": "$.processed.order.product_id"}
+              },
+              "UpdateExpression": "SET stock = stock - :q",
+              "ExpressionAttributeValues": {
+                ":q": {"N.$": "States.JsonToString($.processed.order.quantity)"}
+              }
+            },
+            "ResultPath": null,
+            "Retry": [
+              {
+                "ErrorEquals": ["States.ALL"],
+                "IntervalSeconds": 1,
+                "MaxAttempts": 3,
+                "BackoffRate": 2.0
+              }
+            ],
+            "Catch": [
+              {
+                "ErrorEquals": ["States.ALL"],
+                "Next": "SkipInvalid",
+                "ResultPath": null
+              }
+            ],
+            "End": true
+          }
+        }
+      },
+      "Next": "RecordResult"
+    },
+    "RecordResult": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::dynamodb:putItem",
+      "Parameters": {
+        "TableName": "${history_table}",
+        "Item": {
+          "execution_id":     {"S.$": "$$.Execution.Id"},
+          "started_at":       {"S.$": "$$.Execution.StartTime"},
+          "status":           {"S": "COMPLETED"},
+          "total_orders":     {"N.$": "States.JsonToString(States.ArrayLength($.orderData.content.orders))"},
+          "valid_orders":     {"N.$": "States.JsonToString(States.ArrayLength($.validationResults))"},
+          "processed_orders": {"N.$": "States.JsonToString(States.ArrayLength($.processResults))"},
+          "expires_at":       {"N": "4291747200"}
+        }
+      },
+      "End": true
+    },
+    "PipelineFailed": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::dynamodb:putItem",
+      "Parameters": {
+        "TableName": "${history_table}",
+        "Item": {
+          "execution_id": {"S.$": "$$.Execution.Id"},
+          "started_at":   {"S.$": "$$.Execution.StartTime"},
+          "status":       {"S": "FAILED"},
+          "error":        {"S.$": "$.error.Error"},
+          "cause":        {"S.$": "$.error.Cause"}
+        }
+      },
+      "End": true
+    }
+  }
+}

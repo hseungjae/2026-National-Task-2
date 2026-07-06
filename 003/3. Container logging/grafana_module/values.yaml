@@ -1,0 +1,221 @@
+adminPassword: "${admin_password}"
+
+service:
+  enabled: true
+  type: LoadBalancer
+  port: 80
+  targetPort: 3000
+
+persistence:
+  enabled: false
+
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+      - name: Loki
+        type: loki
+        uid: Loki
+        access: proxy
+        url: http://wsc2026-loki.wsc2026-logging.svc.cluster.local:3100
+      - name: Prometheus
+        type: prometheus
+        uid: Prometheus
+        access: proxy
+        url: http://wsc2026-prometheus-server.wsc2026-logging.svc.cluster.local:80
+        isDefault: true
+
+dashboardProviders:
+  dashboardproviders.yaml:
+    apiVersion: 1
+    providers:
+      - name: 'wsc2026'
+        orgId: 1
+        folder: ''
+        type: file
+        disableDeletion: false
+        editable: true
+        options:
+          path: /var/lib/grafana/dashboards/wsc2026
+
+dashboards:
+  wsc2026:
+    wsc2026-app-logs:
+      json: |
+        {
+          "title": "wsc2026-app-logs",
+          "uid": "wsc2026-app-logs",
+          "editable": true,
+          "schemaVersion": 39,
+          "version": 9,
+          "refresh": "5s",
+          "time": { "from": "now-5m", "to": "now" },
+          "tags": ["wsc2026"],
+          "templating": {
+            "list": [
+              {
+                "name": "namespace",
+                "type": "custom",
+                "query": "wsc2026-app",
+                "current": { "text": "wsc2026-app", "value": "wsc2026-app" }
+              }
+            ]
+          },
+          "panels": [
+            {
+              "type": "timeseries", "id": 1,
+              "title": "Log Level Trend (rate/min)",
+              "datasource": { "type": "prometheus", "uid": "Prometheus" },
+              "gridPos": { "x": 0, "y": 0, "w": 8, "h": 8 },
+              "targets": [{
+                "expr": "sum by (level) (log_record_count_total{level=~\"INFO|WARN|ERROR\"})",
+                "legendFormat": "{{level}}", "refId": "A"
+              }],
+              "fieldConfig": {
+                "defaults": {
+                  "noValue": "0",
+                  "custom": { "drawStyle": "line", "lineWidth": 2, "pointSize": 5, "showPoints": "always" }
+                },
+                "overrides": [
+                  { "matcher": { "id": "byName", "options": "INFO" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } }] },
+                  { "matcher": { "id": "byName", "options": "WARN" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "yellow" } }] },
+                  { "matcher": { "id": "byName", "options": "ERROR" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }] }
+                ]
+              },
+              "options": { "legend": { "displayMode": "list", "placement": "bottom" } }
+            },
+            {
+              "type": "timeseries", "id": 2,
+              "title": "Error/Warn Rate (%)",
+              "datasource": { "type": "prometheus", "uid": "Prometheus" },
+              "gridPos": { "x": 8, "y": 0, "w": 8, "h": 8 },
+              "targets": [
+                { "expr": "100 * sum(log_record_count_total{level=\"ERROR\"}) / sum(log_record_count_total)", "legendFormat": "Error %", "refId": "A" },
+                { "expr": "100 * sum(log_record_count_total{level=\"WARN\"}) / sum(log_record_count_total)", "legendFormat": "Warn %", "refId": "B" }
+              ],
+              "fieldConfig": {
+                "defaults": { "unit": "percent", "min": 0, "max": 100 },
+                "overrides": [
+                  { "matcher": { "id": "byName", "options": "Error %" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }] },
+                  { "matcher": { "id": "byName", "options": "Warn %" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "yellow" } }] }
+                ]
+              }
+            },
+            {
+              "type": "piechart", "id": 3,
+              "title": "Log Distribution",
+              "datasource": { "type": "prometheus", "uid": "Prometheus" },
+              "gridPos": { "x": 16, "y": 0, "w": 8, "h": 8 },
+              "targets": [{ "expr": "sum by (level) (log_record_count_total)", "legendFormat": "{{level}}", "refId": "A" }],
+              "fieldConfig": {
+                "defaults": {},
+                "overrides": [
+                  { "matcher": { "id": "byName", "options": "INFO" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } }] },
+                  { "matcher": { "id": "byName", "options": "WARN" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "yellow" } }] },
+                  { "matcher": { "id": "byName", "options": "ERROR" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }] },
+                  { "matcher": { "id": "byName", "options": "UNKNOWN" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "blue" } }] }
+                ]
+              },
+              "options": { "pieType": "pie", "legend": { "displayMode": "list", "placement": "bottom" } }
+            },
+            {
+              "type": "stat", "id": 4, "title": "INFO Count",
+              "datasource": { "type": "prometheus", "uid": "Prometheus" },
+              "gridPos": { "x": 0, "y": 8, "w": 4, "h": 6 },
+              "targets": [{ "expr": "sum(log_record_count_total{level=\"INFO\"})", "refId": "A" }],
+              "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "green" }, "unit": "short" } },
+              "options": { "colorMode": "value", "graphMode": "area", "textMode": "value" }
+            },
+            {
+              "type": "stat", "id": 5, "title": "Error Count",
+              "datasource": { "type": "prometheus", "uid": "Prometheus" },
+              "gridPos": { "x": 4, "y": 8, "w": 4, "h": 6 },
+              "targets": [{ "expr": "sum(log_record_count_total{level=\"ERROR\"})", "refId": "A" }],
+              "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "red" }, "unit": "short" } },
+              "options": { "colorMode": "value", "graphMode": "area", "textMode": "value" }
+            },
+            {
+              "type": "stat", "id": 6, "title": "Warn Count",
+              "datasource": { "type": "prometheus", "uid": "Prometheus" },
+              "gridPos": { "x": 8, "y": 8, "w": 4, "h": 6 },
+              "targets": [{ "expr": "sum(log_record_count_total{level=\"WARN\"})", "refId": "A" }],
+              "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "yellow" }, "unit": "short" } },
+              "options": { "colorMode": "value", "graphMode": "area", "textMode": "value" }
+            },
+            {
+              "type": "stat", "id": 7, "title": "Total Logs",
+              "datasource": { "type": "prometheus", "uid": "Prometheus" },
+              "gridPos": { "x": 12, "y": 8, "w": 4, "h": 6 },
+              "targets": [{ "expr": "sum(log_record_count_total)", "refId": "A" }],
+              "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "green" }, "unit": "short" } },
+              "options": { "colorMode": "value", "graphMode": "area", "textMode": "value" }
+            },
+            {
+              "type": "gauge", "id": 8, "title": "Error Rate",
+              "datasource": { "type": "prometheus", "uid": "Prometheus" },
+              "gridPos": { "x": 16, "y": 8, "w": 4, "h": 6 },
+              "targets": [{ "expr": "100 * sum(log_record_count_total{level=\"ERROR\"}) / sum(log_record_count_total)", "refId": "A" }],
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "percent", "min": 0, "max": 100,
+                  "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }] }
+                }
+              }
+            },
+            {
+              "type": "gauge", "id": 9, "title": "Warn Rate",
+              "datasource": { "type": "prometheus", "uid": "Prometheus" },
+              "gridPos": { "x": 20, "y": 8, "w": 4, "h": 6 },
+              "targets": [{ "expr": "100 * sum(log_record_count_total{level=\"WARN\"}) / sum(log_record_count_total)", "refId": "A" }],
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "percent", "min": 0, "max": 100,
+                  "thresholds": { "mode": "absolute", "steps": [{ "color": "yellow", "value": null }] }
+                }
+              }
+            },
+            {
+              "type": "barchart", "id": 10, "title": "Logs by Level",
+              "datasource": { "type": "prometheus", "uid": "Prometheus" },
+              "gridPos": { "x": 0, "y": 14, "w": 24, "h": 8 },
+              "targets": [{
+                "expr": "sum by (level) (log_record_count_total)",
+                "legendFormat": "{{level}}", "refId": "A"
+              }],
+              "fieldConfig": {
+                "defaults": {},
+                "overrides": [
+                  { "matcher": { "id": "byName", "options": "INFO" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } }] },
+                  { "matcher": { "id": "byName", "options": "WARN" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "yellow" } }] },
+                  { "matcher": { "id": "byName", "options": "ERROR" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }] },
+                  { "matcher": { "id": "byName", "options": "UNKNOWN" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "blue" } }] }
+                ]
+              },
+              "options": {
+                "legend": { "displayMode": "list", "placement": "bottom" },
+                "xTickLabelRotation": 0, "groupWidth": 0.7, "barWidth": 0.9, "stacking": "none"
+              }
+            },
+            {
+              "type": "logs", "id": 11, "title": "INFO Logs",
+              "datasource": { "type": "loki", "uid": "Loki" },
+              "gridPos": { "x": 0, "y": 22, "w": 8, "h": 8 },
+              "targets": [{ "expr": "{service_name=~\".+\"} |~ \"(?i)info\"", "refId": "A" }],
+              "options": { "showTime": false, "showLabels": false, "wrapLogMessage": false, "enableLogDetails": true, "dedupStrategy": "none" }
+            },
+            {
+              "type": "logs", "id": 12, "title": "WARN Logs",
+              "datasource": { "type": "loki", "uid": "Loki" },
+              "gridPos": { "x": 8, "y": 22, "w": 8, "h": 8 },
+              "targets": [{ "expr": "{service_name=~\".+\"} |~ \"(?i)warn\"", "refId": "A" }],
+              "options": { "showTime": false, "showLabels": false, "wrapLogMessage": false, "enableLogDetails": true, "dedupStrategy": "none" }
+            },
+            {
+              "type": "logs", "id": 13, "title": "ERROR Logs",
+              "datasource": { "type": "loki", "uid": "Loki" },
+              "gridPos": { "x": 16, "y": 22, "w": 8, "h": 8 },
+              "targets": [{ "expr": "{service_name=~\".+\"} |~ \"(?i)error\"", "refId": "A" }],
+              "options": { "showTime": false, "showLabels": false, "wrapLogMessage": false, "enableLogDetails": true, "dedupStrategy": "none" }
+            }
+          ]
+        }
