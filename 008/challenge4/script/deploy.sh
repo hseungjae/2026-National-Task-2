@@ -2,7 +2,7 @@
 set -e
 
 CLUSTER_NAME="skills-sqs-cluster"
-REGION="us-west-2"
+REGION="ap-northeast-2"
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 
 SQS_QUEUE_URL=$(aws sqs get-queue-url --queue-name skills-sqs-queue --region $REGION --query QueueUrl --output text)
