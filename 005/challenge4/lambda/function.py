@@ -78,8 +78,8 @@ def _get_user(event):
 
     return _resp(200, {
         'name':    item['name']['S'],
-        'age':     int(item['age']['N']),
         'country': item['country']['S'],
+        'age':     int(item['age']['N']),
     })
 
 

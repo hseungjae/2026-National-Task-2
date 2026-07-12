@@ -124,3 +124,68 @@ resource "aws_lambda_permission" "ec2_type_change" {
   principal     = "events.amazonaws.com"
   source_arn    = aws_cloudwatch_event_rule.ec2_type_change.arn
 }
+
+resource "aws_cloudwatch_event_rule" "ec2_stop" {
+  name           = "wsc2026-ec2-stop-rule"
+  description    = "Detect EC2 instance stop"
+  event_bus_name = "default"
+
+  event_pattern = jsonencode({
+    source        = ["aws.ec2"]
+    "detail-type" = ["EC2 Instance State-change Notification"]
+    detail = {
+      state = ["stopped"]
+    }
+  })
+
+  tags = { Name = "wsc2026-ec2-stop-rule" }
+}
+
+resource "aws_cloudwatch_event_target" "ec2_stop" {
+  rule           = aws_cloudwatch_event_rule.ec2_stop.name
+  event_bus_name = "default"
+  target_id      = "wsc2026-ec2-stop-remediation"
+  arn            = var.lambda_arns["ec2_stop_remediation"]
+}
+
+resource "aws_lambda_permission" "ec2_stop" {
+  statement_id  = "AllowEventBridgeInvokeStop"
+  action        = "lambda:InvokeFunction"
+  function_name = var.lambda_names["ec2_stop_remediation"]
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.ec2_stop.arn
+}
+
+resource "aws_cloudwatch_event_rule" "tag_compliance" {
+  name           = "wsc2026-tag-compliance-rule"
+  description    = "Detect required-tags Config compliance change"
+  event_bus_name = "default"
+
+  event_pattern = jsonencode({
+    source        = ["aws.config"]
+    "detail-type" = ["Config Rules Compliance Change"]
+    detail = {
+      configRuleName = ["wsc2026-required-tags-rule"]
+      newEvaluationResult = {
+        complianceType = ["NON_COMPLIANT"]
+      }
+    }
+  })
+
+  tags = { Name = "wsc2026-tag-compliance-rule" }
+}
+
+resource "aws_cloudwatch_event_target" "tag_compliance" {
+  rule           = aws_cloudwatch_event_rule.tag_compliance.name
+  event_bus_name = "default"
+  target_id      = "wsc2026-tag-alert"
+  arn            = var.lambda_arns["tag_alert"]
+}
+
+resource "aws_lambda_permission" "tag_compliance" {
+  statement_id  = "AllowEventBridgeInvokeTagAlert"
+  action        = "lambda:InvokeFunction"
+  function_name = var.lambda_names["tag_alert"]
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.tag_compliance.arn
+}

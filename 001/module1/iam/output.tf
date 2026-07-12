@@ -3,5 +3,5 @@ output "role_arn" {
 }
 
 output "policy_id" {
-  value = aws_iam_role_policy.api_handler_policy.id
+  value = aws_iam_policy.api_handler_policy.id
 }

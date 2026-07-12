@@ -13,9 +13,8 @@ resource "aws_iam_role" "api_handler_role" {
 }
 
 # DynamoDB 읽기/쓰기 최소 권한 (PutItem, GetItem 만)
-resource "aws_iam_role_policy" "api_handler_policy" {
+resource "aws_iam_policy" "api_handler_policy" {
   name = "wsc2026-dynamodb-minimal"
-  role = aws_iam_role.api_handler_role.id
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -32,4 +31,9 @@ resource "aws_iam_role_policy" "api_handler_policy" {
       }
     ]
   })
+}
+
+resource "aws_iam_role_policy_attachment" "api_handler_policy" {
+  role       = aws_iam_role.api_handler_role.name
+  policy_arn = aws_iam_policy.api_handler_policy.arn
 }

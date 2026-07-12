@@ -49,5 +49,5 @@ resource "aws_instance" "bastion" {
     echo "instance ready"
   EOF
 
-  tags = { Name = "wsc-logging-app-bastion" }
+  tags = { Name = "wsc-log-app-bastion" }
 }

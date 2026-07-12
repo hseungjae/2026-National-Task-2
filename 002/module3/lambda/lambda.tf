@@ -22,6 +22,18 @@ data "archive_file" "ec2_type_remediation" {
   output_path = "${path.module}/ec2-type-remediation.zip"
 }
 
+data "archive_file" "ec2_stop_remediation" {
+  type        = "zip"
+  source_file = "${path.module}/ec2-stop-remediation/index.py"
+  output_path = "${path.module}/ec2-stop-remediation.zip"
+}
+
+data "archive_file" "tag_alert" {
+  type        = "zip"
+  source_file = "${path.module}/tag-alert/index.py"
+  output_path = "${path.module}/tag-alert.zip"
+}
+
 resource "aws_lambda_function" "sg_remediation" {
   filename         = data.archive_file.sg_remediation.output_path
   source_code_hash = data.archive_file.sg_remediation.output_base64sha256
@@ -97,4 +109,40 @@ resource "aws_lambda_function" "ec2_type_remediation" {
   }
 
   tags = { Name = "wsc2026-ec2-type-remediation" }
+}
+
+resource "aws_lambda_function" "ec2_stop_remediation" {
+  filename         = data.archive_file.ec2_stop_remediation.output_path
+  source_code_hash = data.archive_file.ec2_stop_remediation.output_base64sha256
+  function_name    = "wsc2026-ec2-stop-remediation"
+  role             = var.lambda_role_arn
+  handler          = "index.handler"
+  runtime          = "python3.12"
+  timeout          = 60
+
+  environment {
+    variables = {
+      SNS_TOPIC_ARN = var.topic_arn
+    }
+  }
+
+  tags = { Name = "wsc2026-ec2-stop-remediation" }
+}
+
+resource "aws_lambda_function" "tag_alert" {
+  filename         = data.archive_file.tag_alert.output_path
+  source_code_hash = data.archive_file.tag_alert.output_base64sha256
+  function_name    = "wsc2026-tag-alert"
+  role             = var.lambda_role_arn
+  handler          = "index.handler"
+  runtime          = "python3.12"
+  timeout          = 30
+
+  environment {
+    variables = {
+      SNS_TOPIC_ARN = var.topic_arn
+    }
+  }
+
+  tags = { Name = "wsc2026-tag-alert" }
 }
