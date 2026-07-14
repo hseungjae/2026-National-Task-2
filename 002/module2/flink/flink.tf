@@ -27,29 +27,54 @@ resource "aws_kinesisanalyticsv2_application" "flink" {
   service_execution_role = var.flink_role_arn
   application_mode       = "INTERACTIVE"
 
-  application_configuration {
-    application_code_configuration {
-      code_content_type = "PLAINTEXT"
-      code_content {
-        text_content = " "
-      }
-    }
-
-    flink_application_configuration {
-      parallelism_configuration {
-        configuration_type   = "CUSTOM"
-        parallelism          = 4
-        parallelism_per_kpu  = 1
-        auto_scaling_enabled = false
-      }
-    }
-  }
-
+  # Tags are deliberately not set here: CreateApplication with tags fails with
+  # ConcurrentModificationException ("Tags are already registered for this
+  # resource ARN") whenever this app was deleted and recreated recently, since
+  # AWS's tag registry takes a while to release the ARN. Tagged separately via
+  # TagResource in null_resource.flink_parallelism below, per AWS's own
+  # workaround suggestion in that error message.
   lifecycle {
     ignore_changes = [application_configuration]
   }
 
   depends_on = [aws_glue_catalog_database.default, aws_glue_catalog_database.flink]
+}
 
-  tags = { Name = "wsc2026-analytics-flink" }
+data "aws_region" "current" {}
+
+# CreateApplication rejects a CUSTOM parallelism config on INTERACTIVE (Zeppelin)
+# apps at creation time (fails with an opaque UnknownError), so it's applied via
+# UpdateApplication after the app exists instead - the same call the console makes
+# when you change it under "크기 조정".
+resource "null_resource" "flink_parallelism" {
+  triggers = {
+    application_name = aws_kinesisanalyticsv2_application.flink.name
+  }
+
+  provisioner "local-exec" {
+    interpreter = ["powershell", "-Command"]
+    command     = <<-EOT
+      $ErrorActionPreference = "Stop"
+      $appName = "${aws_kinesisanalyticsv2_application.flink.name}"
+      $appArn  = "${aws_kinesisanalyticsv2_application.flink.arn}"
+      $region  = "${data.aws_region.current.name}"
+
+      for ($i = 0; $i -lt 30; $i++) {
+        $status = aws kinesisanalyticsv2 describe-application --application-name $appName --region $region --query "ApplicationDetail.ApplicationStatus" --output text
+        if ($status -eq "READY" -or $status -eq "RUNNING") { break }
+        Start-Sleep -Seconds 10
+      }
+
+      $versionId = aws kinesisanalyticsv2 describe-application --application-name $appName --region $region --query "ApplicationDetail.ApplicationVersionId" --output text
+
+      $configFile = Join-Path $env:TEMP "wsc2026-flink-parallelism-update.json"
+      '{"FlinkApplicationConfigurationUpdate":{"ParallelismConfigurationUpdate":{"ConfigurationTypeUpdate":"CUSTOM","ParallelismUpdate":4,"ParallelismPerKPUUpdate":1,"AutoScalingEnabledUpdate":false}}}' | Set-Content -Path $configFile -Encoding ascii -NoNewline
+
+      aws kinesisanalyticsv2 update-application --application-name $appName --current-application-version-id $versionId --application-configuration-update "file://$configFile" --region $region
+
+      aws kinesisanalyticsv2 tag-resource --resource-arn $appArn --tags Key=Name,Value=$appName --region $region
+    EOT
+  }
+
+  depends_on = [aws_kinesisanalyticsv2_application.flink]
 }
