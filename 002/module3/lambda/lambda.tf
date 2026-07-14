@@ -119,6 +119,7 @@ resource "aws_lambda_function" "ec2_stop_remediation" {
   handler          = "index.handler"
   runtime          = "python3.12"
   timeout          = 60
+  memory_size      = 512
 
   environment {
     variables = {

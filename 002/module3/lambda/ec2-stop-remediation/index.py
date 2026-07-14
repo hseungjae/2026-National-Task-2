@@ -16,9 +16,6 @@ def handler(event, context):
     instance_id = detail.get("instance-id", "unknown")
 
     try:
-        waiter = ec2_client.get_waiter("instance_stopped")
-        waiter.wait(InstanceIds=[instance_id])
-
         ec2_client.start_instances(InstanceIds=[instance_id])
         print(f"Instance {instance_id} restart requested")
     except Exception as e:

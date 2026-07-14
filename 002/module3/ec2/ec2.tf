@@ -53,5 +53,5 @@ resource "aws_instance" "event" {
   iam_instance_profile        = aws_iam_instance_profile.event_ec2.name
   associate_public_ip_address = true
 
-  tags = { Name = "wsc2026-event-ec2" }
+  tags = { Name = "wsc2026-event-ec2", Owner = "wsc2026" }
 }
