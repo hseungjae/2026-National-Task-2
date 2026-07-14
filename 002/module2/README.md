@@ -48,7 +48,16 @@ WITH (
 ```
 
 ### 3. 분석 쿼리 실행
-문제지에 SQL 쿼리 실행
+문제지에 SQL 쿼리 
+```
+SELECT COUNT(*) as order_count
+  FROM order_stream
+  WHERE event_time > CURRENT_TIMESTAMP - INTERVAL '1' MINUTE;
+
+SELECT product_name, SUM(price * quantity) as total_revenue
+  FROM order_stream
+  GROUP BY product_name;
+```
 
 ## 채점 스크립트
 
