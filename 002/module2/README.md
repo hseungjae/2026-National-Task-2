@@ -18,7 +18,7 @@ terraform apply --auto-approve
 
 1. `wsc2026-analytics-flink` 앱 선택 → **Configuration** 탭
 2. **Connectors** 섹션 → **Add connector** 클릭
-3. AWS 제공 connector 목록에서 **Amazon Kinesis connector for Apache Flink** 선택
+3. AWS 제공 connector 목록에서 **flink-sql-connector-kinesis, flink-connector-kafka, aws-mks-iam-auth** 선택
 4. **Save changes** 클릭
 5. 앱 재시작 (Stop → Open in Apache Zeppelin)
 
@@ -26,18 +26,24 @@ terraform apply --auto-approve
 
 ```sql
 %flink.ssql
+
+DROP TABLE IF EXISTS order_stream;
+
 CREATE TABLE order_stream (
-  orderId VARCHAR,
-  customerId VARCHAR,
-  amount DOUBLE,
-  orderTime TIMESTAMP(3),
-  WATERMARK FOR orderTime AS orderTime - INTERVAL '5' SECOND
-) WITH (
-  'connector' = 'kinesis',
-  'stream' = 'wsc2026-order-stream',
-  'aws.region' = 'ap-northeast-2',
-  'scan.stream.initpos' = 'LATEST',
-  'format' = 'json'
+  order_id     STRING,
+  product_name STRING,
+  price        BIGINT,
+  quantity     INT,
+  event_time   TIMESTAMP_LTZ(3),
+  WATERMARK FOR event_time AS event_time - INTERVAL '5' SECOND
+)
+WITH (
+  'connector'                      = 'kinesis',
+  'stream'                         = 'wsc2026-order-stream',
+  'aws.region'                     = 'ap-northeast-2',
+  'scan.stream.initpos'            = 'TRIM_HORIZON',
+  'format'                         = 'json',
+  'json.timestamp-format.standard' = 'SQL'
 );
 ```
 
