@@ -27,6 +27,24 @@ resource "aws_kinesisanalyticsv2_application" "flink" {
   service_execution_role = var.flink_role_arn
   application_mode       = "INTERACTIVE"
 
+  application_configuration {
+    application_code_configuration {
+      code_content_type = "PLAINTEXT"
+      code_content {
+        text_content = " "
+      }
+    }
+
+    flink_application_configuration {
+      parallelism_configuration {
+        configuration_type   = "CUSTOM"
+        parallelism          = 4
+        parallelism_per_kpu  = 1
+        auto_scaling_enabled = false
+      }
+    }
+  }
+
   lifecycle {
     ignore_changes = [application_configuration]
   }
