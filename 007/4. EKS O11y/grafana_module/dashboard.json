@@ -28,13 +28,19 @@
       "type": "piechart",
       "datasource": { "type": "loki", "uid": "loki" },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "options": {
+        "reduceOptions": { "values": false, "calcs": ["sum"], "fields": "" },
+        "pieType": "pie",
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "single" }
+      },
       "targets": [
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum by (level) (count_over_time({k8s_namespace_name=\"o11y\"} | json | level=~\"INFO|WARN|ERROR\" [$__range]))",
+          "expr": "sum by (level) (count_over_time({k8s_namespace_name=\"o11y\"} | json | level=~\"INFO|WARN|ERROR\" [$__auto]))",
           "legendFormat": "{{level}}",
-          "queryType": "instant"
+          "queryType": "range"
         }
       ]
     },
