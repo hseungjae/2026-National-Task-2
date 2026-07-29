@@ -16,7 +16,7 @@ resource "kubernetes_manifest" "order_scaler" {
         horizontalPodAutoscalerConfig = {
           behavior = {
             scaleDown = {
-              stabilizationWindowSeconds = 10
+              stabilizationWindowSeconds = 3
             }
           }
         }
