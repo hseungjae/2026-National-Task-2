@@ -4,10 +4,14 @@
 
 ### 바이너리 복사 (반드시 먼저 실행)
 
+문제지와 함께 배포되는 `module4/app` 바이너리를 이 저장소의 `module4/scripts/app`로 복사합니다.
+(아래는 예시이며, `<배포파일 경로>`는 실제로 압축을 푼 위치로 바꿔서 사용하세요.)
+
 ```powershell
-Copy-Item "C:\Users\USER\Desktop\26 전국\과제풀이\02\2과제\배포파일\module4\app" `
-  "C:\Users\USER\Desktop\26 전국\terraform\2026-National-Task-2\02\module4\scripts\app"
+Copy-Item "<배포파일 경로>\module4\app" ".\scripts\app"
 ```
+
+> 이미 `module4/scripts/app`에 바이너리가 있다면 이 단계는 건너뛰어도 됩니다.
 
 ## Terraform 배포
 
