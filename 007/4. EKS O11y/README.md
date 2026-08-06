@@ -1,9 +1,8 @@
-
 ### 1) eks까지 먼저 apply
 
 ```bash
 terraform init
-terraform apply -target=module.vpc -target=module.ecr -target=module.eks --auto-approve
+terraform apply -target="module.vpc" -target="module.ecr" -target="module.eks" -auto-approve
 ```
 
 ### 2) 컨테이너 이미지 빌드 & ECR push
