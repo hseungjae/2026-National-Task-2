@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-REGION="ap-northeast-2"
+REGION="us-west-2"
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 ECR_REPO_URL="${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/skills-sqs-ecr"
 

@@ -1,5 +1,5 @@
 variable "region" {
-  default = "ap-northeast-2"
+  default = "us-west-2"
 }
 
 variable "cluster_name" {
