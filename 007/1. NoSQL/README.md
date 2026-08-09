@@ -1,0 +1,1 @@
+1. terraform apply를 실행해준다.
