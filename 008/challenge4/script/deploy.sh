@@ -2,7 +2,7 @@
 set -e
 
 CLUSTER_NAME="skills-sqs-cluster"
-REGION="ap-northeast-2"
+REGION="us-west-2"
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 
 SQS_QUEUE_URL=$(aws sqs get-queue-url --queue-name skills-sqs-queue --region $REGION --query QueueUrl --output text)
@@ -123,7 +123,9 @@ spec:
     cpu: "10"
   disruption:
     consolidationPolicy: WhenEmptyOrUnderutilized
-    consolidateAfter: 30s
+    consolidateAfter: 15s
+    budgets:
+      - nodes: "100%"
 EOF
 
 echo "=== Creating Deployment ==="
@@ -183,8 +185,8 @@ spec:
     name: sqs-worker
   minReplicaCount: 0
   maxReplicaCount: 6
-  pollingInterval: 15
-  cooldownPeriod: 30
+  pollingInterval: 5
+  cooldownPeriod: 15
   triggers:
     - type: aws-sqs-queue
       authenticationRef:
