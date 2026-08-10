@@ -7,7 +7,7 @@ terraform init
 terraform apply --auto-approve
 ```
 
-## 수동 작업 (Console)
+## 수동 작업 (안해도 됨)
 
 ### 1. Flink Studio 시작
 1. AWS Console → Amazon Kinesis → Analytics applications → `wsc2026-analytics-flink`
@@ -57,10 +57,4 @@ SELECT COUNT(*) as order_count
 SELECT product_name, SUM(price * quantity) as total_revenue
   FROM order_stream
   GROUP BY product_name;
-```
-
-## 채점 스크립트
-
-```bash
-./mark2-2.sh
 ```

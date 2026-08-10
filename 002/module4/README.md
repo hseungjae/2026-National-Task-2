@@ -7,38 +7,7 @@ terraform init -upgrade
 terraform apply --auto-approve
 ```
 
-> MSK 클러스터 생성에 약 **15~20분** 소요, 이 동안 아래 스크립트로 바이너리를 S3에 업로드합니다.
 
-```bash
-./scripts/upload_binary.sh <비번호>
-```
-
-## 자동 실행 항목 (EC2 user_data)
-
-Terraform 완료 후 EC2가 자동으로 아래 작업 수행:
-- Kafka 설치
-- MSK 토픽 생성 (`wsc2026-sensor-raw` 3파티션, `wsc2026-sensor-alert` 1파티션)
-- S3에서 producer 바이너리 다운로드
-- `producer.service` systemd 등록 및 시작
-
-### user_data 로그 확인 (EC2 SSM 접속 후)
-
-```bash
-sudo cat /var/log/cloud-init-output.log
-sudo systemctl status producer
-sudo journalctl -u producer -n 30
-```
-
-## Lambda Event Source Mapping 확인
-
-배포 후 **3~5분** 대기 후 확인:
-
-```bash
-aws lambda list-event-source-mappings \
-  --function-name wsc2026-sensor-consumer \
-  --region ap-northeast-1 \
-  --query "EventSourceMappings[0].LastProcessingResult" --output text
-```
 
 ## ❗ Connection error 발생 시 - Event Source Mapping 재생성
 
@@ -77,9 +46,3 @@ aws lambda create-event-source-mapping \
 ```
 
 재생성 후 2~3분 대기 → `LastProcessingResult` 가 `OK` 로 바뀌면 정상
-
-## 채점 스크립트
-
-```bash
-./mark2-4.sh
-```
