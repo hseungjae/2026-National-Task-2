@@ -12,7 +12,7 @@ module "iam" {
   s3_bucket_arn = module.s3.bucket_arn
   dynamodb_arn  = module.dynamodb.table_arn
   account_id    = data.aws_caller_identity.current.account_id
-  region        = data.aws_region.current.name
+  region        = var.region
 }
 
 module "lambda" {
@@ -33,7 +33,7 @@ module "stepfunctions" {
   score_function_name = module.lambda.score_function_name
   s3_bucket_name      = module.s3.bucket_name
   account_id          = data.aws_caller_identity.current.account_id
-  region              = data.aws_region.current.name
+  region              = var.region
 
   depends_on = [module.lambda]
 }

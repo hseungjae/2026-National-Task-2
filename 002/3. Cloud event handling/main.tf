@@ -23,7 +23,7 @@ module "iam" {
 module "s3" {
   source     = "./s3"
   account_id = data.aws_caller_identity.current.account_id
-  region     = data.aws_region.current.name
+  region     = var.region
 }
 
 module "cloudtrail" {

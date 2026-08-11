@@ -3,7 +3,7 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "~> 5.0"
+      version = ">= 5.100"
     }
     archive = {
       source  = "hashicorp/archive"
@@ -13,5 +13,6 @@ terraform {
 }
 
 provider "aws" {
-  region = "eu-west-1"
+  region  = var.region
+  profile = var.awscli_profile
 }

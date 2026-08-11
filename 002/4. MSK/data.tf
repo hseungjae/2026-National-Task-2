@@ -18,4 +18,3 @@ data "aws_ami" "amazon_linux_2023" {
 }
 
 data "aws_caller_identity" "current" {}
-data "aws_region" "current" {}
