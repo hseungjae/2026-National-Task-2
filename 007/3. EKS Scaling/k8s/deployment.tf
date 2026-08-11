@@ -24,7 +24,8 @@ resource "kubernetes_deployment" "order_processor" {
       }
 
       spec {
-        service_account_name = kubernetes_service_account.order_sa.metadata[0].name
+        service_account_name             = kubernetes_service_account.order_sa.metadata[0].name
+        termination_grace_period_seconds = 10
 
         node_selector = {
           "karpenter.sh/nodepool" = "${var.prefix}-app-nodepool"

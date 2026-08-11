@@ -10,6 +10,13 @@ resource "helm_release" "grafana" {
     adminUser     = var.admin_user
     adminPassword = var.admin_password
 
+    # 새 로그 패널(가로 칩 + '+N' 접힘) 대신 구버전 렌더링(라벨 세로 정렬) 사용
+    "grafana.ini" = {
+      feature_toggles = {
+        newLogsPanel = false
+      }
+    }
+
     persistence = {
       enabled = true
       size    = "5Gi"

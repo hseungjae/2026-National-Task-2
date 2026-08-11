@@ -15,9 +15,9 @@ variable "k8s_version" {
 }
 
 variable "grafana_admin_user" {
-  default = "skills104"
+  default = "skills105"
 }
 
 variable "grafana_admin_password" {
-  default = "GoodJob!Skills104^^"
+  default = "GoodJob!Skills105^^"
 }

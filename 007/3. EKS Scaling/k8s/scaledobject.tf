@@ -10,6 +10,7 @@ resource "kubernetes_manifest" "order_scaler" {
       scaleTargetRef = {
         name = "order-processor"
       }
+      pollingInterval = 5
       minReplicaCount = 1
       maxReplicaCount = 5
       advanced = {
