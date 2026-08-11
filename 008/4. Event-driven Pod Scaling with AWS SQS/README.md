@@ -23,7 +23,7 @@ aws eks update-kubeconfig --name skills-sqs-cluster --region us-west-2
 CloudShell에서 `script/push.sh` 업로드 후:
 
 ```bash
-sed -i 's/\r//' push.sh && chmod +x push.sh && ./push.sh
+chmod +x push.sh && ./push.sh
 ```
 
 ### 4단계 - K8s 리소스 배포
@@ -31,5 +31,5 @@ sed -i 's/\r//' push.sh && chmod +x push.sh && ./push.sh
 CloudShell에서 `script/deploy.sh` 업로드 후:
 
 ```bash
-sed -i 's/\r//' deploy.sh && chmod +x deploy.sh && ./deploy.sh
+chmod +x deploy.sh && ./deploy.sh
 ```

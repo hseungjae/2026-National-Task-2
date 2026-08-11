@@ -1,3 +1,11 @@
+variable "awscli_profile" {
+  default = "default"
+}
+
+variable "region" {
+  default = "ap-northeast-2"
+}
+
 variable "docdb_password" {
   description = "DocumentDB master password"
   type        = string

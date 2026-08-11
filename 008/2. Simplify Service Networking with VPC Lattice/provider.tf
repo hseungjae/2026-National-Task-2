@@ -9,5 +9,6 @@ terraform {
 }
 
 provider "aws" {
-  region = "ap-northeast-1"
+  region = var.region
+  profile = var.awscli_profile
 }
