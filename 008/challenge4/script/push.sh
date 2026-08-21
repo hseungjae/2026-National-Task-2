@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-REGION="ap-northeast-2"
+REGION="us-west-2"
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 ECR_REPO_URL="${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/skills-sqs-ecr"
 
@@ -20,7 +20,7 @@ def stop(_signum, _frame):
 signal.signal(signal.SIGTERM, stop)
 signal.signal(signal.SIGINT, stop)
 
-region = os.environ.get("AWS_REGION", "ap-northeast-2")
+region = os.environ.get("AWS_REGION", "us-west-2")
 queue_url = os.environ["SQS_QUEUE_URL"]
 processing_seconds = int(os.environ.get("PROCESSING_SECONDS", "20"))
 
