@@ -52,7 +52,6 @@ resource "aws_instance" "event" {
   vpc_security_group_ids      = [aws_security_group.event_ec2.id]
   iam_instance_profile        = aws_iam_instance_profile.event_ec2.name
   associate_public_ip_address = true
-  disable_api_stop            = true
 
   tags = { Name = "wsc2026-event-ec2", Owner = "wsc2026" }
 }

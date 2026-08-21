@@ -170,7 +170,7 @@ metadata:
   namespace: skills-sqs
 spec:
   podIdentity:
-    provider: aws
+    provider: aws-eks
 EOF
 
 echo "=== Creating ScaledObject ==="
